@@ -655,14 +655,9 @@ mixin PieceFactory {
     Token? fieldKeyword,
     Token? period,
   }) {
-    // If the parameter has a default value, the parameter node will be wrapped
-    // in a DefaultFormalParameter node containing the default.
     (Token separator, Expression value)? defaultValueRecord;
-    if (node.parent case DefaultFormalParameter(
-      :var separator?,
-      :var defaultValue?,
-    )) {
-      defaultValueRecord = (separator, defaultValue);
+    if (node.defaultClause case var defaultClause?) {
+      defaultValueRecord = (defaultClause.separator, defaultClause.value);
     }
 
     writeParameter(
@@ -830,7 +825,7 @@ mixin PieceFactory {
       var modifiers = [
         parameter?.requiredKeyword,
         parameter?.covariantKeyword,
-        if (parameter case FunctionTypedFormalParameter(:var keyword)) keyword,
+        parameter?.constFinalOrVarKeyword,
       ];
 
       void write() {
@@ -850,18 +845,15 @@ mixin PieceFactory {
         pieces.token(question);
       }
 
-      // If the type is a function-typed parameter with a default value, then
-      // grab the default value from the parent node and attach it to the
-      // function.
-      if (parameter?.parent case DefaultFormalParameter(
-        :var separator?,
-        :var defaultValue?,
-      )) {
+      if (parameter?.defaultClause case var defaultClause?) {
         var function = pieces.build(() {
           writeFunctionAndReturnType(modifiers, returnType, write);
         });
 
-        writeDefaultValue(function, (separator, defaultValue));
+        writeDefaultValue(function, (
+          defaultClause.separator,
+          defaultClause.value,
+        ));
       } else {
         writeFunctionAndReturnType(modifiers, returnType, write);
       }

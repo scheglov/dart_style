@@ -9,7 +9,7 @@ environment:
   sdk: ^3.10.0
 
 dependencies:
-  analyzer: ^12.0.0
+  analyzer: ^13.0.0
   args: ^2.5.0
   collection: ^1.19.0
   package_config: ^2.1.0
@@ -24,3 +24,9 @@ dev_dependencies:
   test: ^1.26.3
   test_descriptor: ^2.0.0
   test_process: ^2.0.0
+
+dependency_overrides:
+  _fe_analyzer_shared:
+    path: /Users/scheglov/Source/Dart/sdk.git/sdk/pkg/_fe_analyzer_shared
+  analyzer:
+    path: /Users/scheglov/Source/Dart/sdk.git/sdk/pkg/analyzer

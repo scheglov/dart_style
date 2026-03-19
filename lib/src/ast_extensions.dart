@@ -30,9 +30,6 @@ extension AstNodeExtensions on AstNode {
       AnnotatedNode(metadata: [var annotation, ...]) => annotation.beginToken,
       AnnotatedNode(firstTokenAfterCommentAndMetadata: var token) => token,
 
-      // The inner [NormalFormalParameter] is an [AnnotatedNode].
-      DefaultFormalParameter(:var parameter) => parameter.firstNonCommentToken,
-
       // The inner [PatternVariableDeclaration] is an [AnnotatedNode].
       PatternVariableDeclarationStatement(:var declaration) =>
         declaration.firstNonCommentToken,

@@ -927,25 +927,6 @@ final class SourceVisitor extends ThrowingAstVisitor {
   }
 
   @override
-  void visitDefaultFormalParameter(DefaultFormalParameter node) {
-    visit(node.parameter);
-    if (node.separator != null) {
-      builder.startSpan();
-      builder.nestExpression();
-
-      // The '=' separator is preceded by a space, ":" is not.
-      if (node.separator!.type == TokenType.EQ) space();
-      token(node.separator);
-
-      soloSplit(_assignmentCost(node.defaultValue!));
-      visit(node.defaultValue);
-
-      builder.unnest();
-      builder.endSpan();
-    }
-  }
-
-  @override
   void visitDoStatement(DoStatement node) {
     builder.nestExpression();
     token(node.doKeyword);
@@ -1213,17 +1194,35 @@ final class SourceVisitor extends ThrowingAstVisitor {
   void visitFieldFormalParameter(FieldFormalParameter node) {
     visitParameterMetadata(node.metadata, () {
       _beginFormalParameter(node);
-      token(node.keyword, after: space);
+      token(node.constFinalOrVarKeyword, after: space);
       visit(node.type);
       _separatorBetweenTypeAndVariable(node.type);
       token(node.thisKeyword);
       token(node.period);
       token(node.name);
-      visit(node.typeParameters);
-      visit(node.parameters);
-      token(node.question);
+      if (node.functionTypedSuffix case var functionTypedSuffix?) {
+        visit(functionTypedSuffix.typeParameters);
+        visit(functionTypedSuffix.formalParameters);
+        token(functionTypedSuffix.question);
+      }
       _endFormalParameter(node);
+      visit(node.defaultClause);
     });
+  }
+
+  @override
+  void visitFormalParameterDefaultClause(FormalParameterDefaultClause node) {
+    builder.startSpan();
+    builder.nestExpression();
+
+    if (node.separator.type == TokenType.EQ) space();
+    token(node.separator);
+
+    soloSplit(_assignmentCost(node.value));
+    visit(node.value);
+
+    builder.unnest();
+    builder.endSpan();
   }
 
   @override
@@ -1251,10 +1250,10 @@ final class SourceVisitor extends ThrowingAstVisitor {
     }
 
     var requiredParams = node.parameters
-        .where((param) => param is! DefaultFormalParameter)
+        .where((param) => !param.isNamed && !param.isOptionalPositional)
         .toList();
     var optionalParams = node.parameters
-        .whereType<DefaultFormalParameter>()
+        .where((param) => param.isNamed || param.isOptionalPositional)
         .toList();
 
     if (nestExpression) builder.nestExpression();
@@ -1578,18 +1577,11 @@ final class SourceVisitor extends ThrowingAstVisitor {
   }
 
   @override
-  void visitFunctionTypedFormalParameter(FunctionTypedFormalParameter node) {
-    visitParameterMetadata(node.metadata, () {
-      modifier(node.requiredKeyword);
-      modifier(node.covariantKeyword);
-      visit(node.returnType, after: space);
-      // Try to keep the function's parameters with its name.
-      builder.startSpan();
-      token(node.name);
-      _visitParameterSignature(node.typeParameters, node.parameters);
-      token(node.question);
-      builder.endSpan();
-    });
+  void visitFunctionTypedFormalParameterSuffix(
+    FunctionTypedFormalParameterSuffix node,
+  ) {
+    _visitParameterSignature(node.typeParameters, node.formalParameters);
+    token(node.question);
   }
 
   @override
@@ -2592,17 +2584,33 @@ final class SourceVisitor extends ThrowingAstVisitor {
   }
 
   @override
-  void visitSimpleFormalParameter(SimpleFormalParameter node) {
+  void visitRegularFormalParameter(RegularFormalParameter node) {
     visitParameterMetadata(node.metadata, () {
-      _beginFormalParameter(node);
+      if (node.functionTypedSuffix case var functionTypedSuffix?) {
+        modifier(node.requiredKeyword);
+        modifier(node.covariantKeyword);
+        visit(node.type, after: space);
+        builder.startSpan();
+        token(node.name);
+        _visitParameterSignature(
+          functionTypedSuffix.typeParameters,
+          functionTypedSuffix.formalParameters,
+        );
+        token(functionTypedSuffix.question);
+        builder.endSpan();
+        visit(node.defaultClause);
+      } else {
+        _beginFormalParameter(node);
 
-      modifier(node.keyword);
+        modifier(node.constFinalOrVarKeyword);
 
-      visit(node.type);
-      if (node.name != null) _separatorBetweenTypeAndVariable(node.type);
-      token(node.name);
+        visit(node.type);
+        if (node.name != null) _separatorBetweenTypeAndVariable(node.type);
+        token(node.name);
 
-      _endFormalParameter(node);
+        _endFormalParameter(node);
+        visit(node.defaultClause);
+      }
     });
   }
 
@@ -2650,15 +2658,18 @@ final class SourceVisitor extends ThrowingAstVisitor {
   void visitSuperFormalParameter(SuperFormalParameter node) {
     visitParameterMetadata(node.metadata, () {
       _beginFormalParameter(node);
-      token(node.keyword, after: space);
+      token(node.constFinalOrVarKeyword, after: space);
       visit(node.type, after: split);
       token(node.superKeyword);
       token(node.period);
       token(node.name);
-      visit(node.typeParameters);
-      visit(node.parameters);
-      token(node.question);
+      if (node.functionTypedSuffix case var functionTypedSuffix?) {
+        visit(functionTypedSuffix.typeParameters);
+        visit(functionTypedSuffix.formalParameters);
+        token(functionTypedSuffix.question);
+      }
       _endFormalParameter(node);
+      visit(node.defaultClause);
     });
   }
 
@@ -3646,14 +3657,16 @@ final class SourceVisitor extends ThrowingAstVisitor {
     // there are any).
     FormalParameter? lastRequired;
     for (var i = 0; i < parameters.parameters.length; i++) {
-      if (parameters.parameters[i] is DefaultFormalParameter) {
+      if (parameters.parameters[i].isNamed ||
+          parameters.parameters[i].isOptionalPositional) {
         if (i > 0) lastRequired = parameters.parameters[i - 1];
         break;
       }
     }
 
     // If all parameters are optional, put the "[" or "{" right after "(".
-    if (parameters.parameters.first is DefaultFormalParameter) {
+    if (parameters.parameters.first.isNamed ||
+        parameters.parameters.first.isOptionalPositional) {
       token(parameters.leftDelimiter);
     }
 
